@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>كابتن مشوارك | نظام إدارة الطلبات المطور</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root { --p: #5d3fd3; --s: #22c55e; --bg: #f0f2f5; --accent: #2563eb; --danger: #ef4444; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        body { background: var(--bg); direction: rtl; }
+        
+        .driver-header { background: var(--p); color: white; padding: 15px; border-radius: 0 0 20px 20px; position: sticky; top: 0; z-index: 100; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .nav-tabs { display: flex; background: white; margin: 10px; border-radius: 12px; padding: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .tab-btn { flex: 1; padding: 12px; border: none; background: none; font-weight: bold; cursor: pointer; border-radius: 10px; color: #666; transition: 0.3s; }
+        .tab-btn.active { background: var(--p); color: white; }
+
+        .order-card { background: white; border-radius: 15px; padding: 15px; margin: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); border-right: 6px solid var(--s); position: relative; animation: slideIn 0.3s ease; }
+        .order-card.history { border-right-color: #94a3b8; opacity: 0.9; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .badge { padding: 5px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; margin-bottom: 10px; display: inline-block; }
+        .badge-mishwar { background: #e0e7ff; color: #4338ca; }
+        .badge-talab { background: #fef3c7; color: #d97706; }
+        .badge-area { background: #f1f5f9; color: var(--p); border: 1px solid #ddd; }
+        
+        .info { font-size: 14px; margin: 8px 0; color: #333; display: flex; align-items: center; gap: 8px; }
+        .info i { color: var(--p); width: 18px; text-align: center; }
+        .price-tag { position: absolute; left: 15px; top: 15px; font-weight: bold; color: var(--s); font-size: 20px; }
+
+        .btn-call { background: var(--accent); color: white; text-decoration: none; flex: 1; padding: 12px; border-radius: 10px; text-align: center; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .btn-accept { background: var(--s); color: white; border: none; flex: 2; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; }
+        .btn-finish { background: #333; color: white; border: none; width: 100%; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+
+        #loginPage { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+        .login-card { background: white; padding: 30px; border-radius: 20px; width: 100%; max-width: 400px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        input { width: 100%; padding: 15px; margin: 20px 0; border: 2px solid #eee; border-radius: 12px; text-align: center; font-size: 22px; outline: none; }
+    </style>
+</head>
+<body>
+
+<audio id="notifSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+
+<div id="loginPage">
+    <div class="login-card">
+        <div style="font-size: 50px; color: var(--p);"><i class="fas fa-motorcycle"></i></div>
+        <h2 style="margin-top:10px;">دخول الكباتن</h2>
+        <p style="font-size:13px; color:#666;">أدخل الكود السري الخاص بك</p>
+        <input type="password" id="dCode" placeholder="****" maxlength="4">
+        <button class="btn-accept" style="width:100%; flex:none; background:var(--p);" onclick="login()">دخول الآن</button>
+    </div>
+</div>
+
+<div id="mainPage" style="display:none;">
+    <div class="driver-header">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+                <b id="driverName" style="font-size:18px;">كابتن</b>
+                <div style="font-size: 12px; opacity: 0.9;">بلدك: <span id="driverAreaDisplay"></span></div>
+                <div id="dBalance" style="font-size: 13px; font-weight: bold; margin-top:5px;">المديونية: 0.00 ج</div>
+            </div>
+            <button onclick="logout()" style="background:rgba(255,255,255,0.2); border:none; color:white; padding:6px 12px; border-radius:8px; font-size:12px;"><i class="fas fa-sign-out-alt"></i> خروج</button>
+        </div>
+    </div>
+
+    <div class="nav-tabs">
+        <button class="tab-btn active" id="tabOrders" onclick="switchTab('orders')">طلبات بلدي</button>
+        <button class="tab-btn" id="tabHistory" onclick="switchTab('history')">سجل رحلاتي</button>
+    </div>
+
+    <div id="contentArea"></div>
+</div>
+
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+<script>
+    const firebaseConfig = {
+  apiKey: "AIzaSyCf8_Ks8OC1J8wI5dRKS55GE_KCAO7H-8c",
+  authDomain: "toktok-f5b4a.firebaseapp.com",
+  databaseURL: "https://toktok-f5b4a-default-rtdb.firebaseio.com",
+  projectId: "toktok-f5b4a",
+  storageBucket: "toktok-f5b4a.firebasestorage.app",
+  messagingSenderId: "970149361447",
+  appId: "1:970149361447:web:1922b3d2b797cd26665b02",
+  measurementId: "G-VWFC6KEH2P"
+};
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let currentDriver = null;
+    let activeTab = 'orders';
+    let lastOrderCount = 0;
+
+    window.onload = function() {
+        const saved = localStorage.getItem('activeDriver');
+        if (saved) {
+            currentDriver = JSON.parse(saved);
+            showMain();
+        }
+    };
+
+    function login() {
+        const code = document.getElementById('dCode').value;
+        db.ref('drivers').once('value', snap => {
+            let found = null;
+            snap.forEach(child => { if(child.val().password == code) found = child.val(); });
+            if(found) {
+                currentDriver = found;
+                localStorage.setItem('activeDriver', JSON.stringify(found));
+                showMain();
+            } else { alert("كود الدخول غلط يا كابتن!"); }
+        });
+    }
+
+    function showMain() {
+        document.getElementById('loginPage').style.display = 'none';
+        document.getElementById('mainPage').style.display = 'block';
+        document.getElementById('driverName').innerText = "أهلاً كابتن " + currentDriver.name;
+        document.getElementById('driverAreaDisplay').innerText = currentDriver.area || "غير محدد";
+        loadData();
+    }
+
+    function switchTab(tab) {
+        activeTab = tab;
+        document.getElementById('tabOrders').classList.toggle('active', tab === 'orders');
+        document.getElementById('tabHistory').classList.toggle('active', tab === 'history');
+        loadData();
+    }
+
+    function loadData() {
+        // تحديث المديونية
+        db.ref('drivers/' + currentDriver.phone + '/commissionBalance').on('value', snap => {
+            document.getElementById('dBalance').innerText = "المديونية: " + (snap.val() || 0).toFixed(2) + " ج";
+        });
+
+        // مراقبة الطلبات مع الفلترة حسب المنطقة
+        db.ref('orders').on('value', snap => {
+            const area = document.getElementById('contentArea');
+            let html = '';
+            let count = 0;
+            let currentWaitingInMyArea = 0;
+
+            snap.forEach(child => {
+                const o = child.val();
+                
+                // فلترة: لا يظهر الطلب إلا إذا كان في انتظار ونفس منطقة الكابتن
+                const isMyArea = o.customerArea === currentDriver.area;
+
+                if (o.status === 'waiting' && isMyArea) {
+                    currentWaitingInMyArea++;
+                    if (activeTab === 'orders') {
+                        count++;
+                        html += renderCard(child.key, o, false);
+                    }
+                } 
+                else if (activeTab === 'history' && o.driverPhone === currentDriver.phone) {
+                    count++;
+                    html += renderCard(child.key, o, true);
+                }
+            });
+
+            // صوت تنبيه لو فيه طلب جديد في منطقتي بس
+            if (currentWaitingInMyArea > lastOrderCount && activeTab === 'orders') {
+                document.getElementById('notifSound').play().catch(()=>{});
+            }
+            lastOrderCount = currentWaitingInMyArea;
+
+            area.innerHTML = count > 0 ? html : `<div style="text-align:center; padding:60px; color:#999;"><p>مفيش طلبات جديدة في ${currentDriver.area} حالياً</p></div>`;
+        });
+    }
+
+    function renderCard(id, o, isHistory) {
+        const badgeClass = o.serviceType === 'مشوار' ? 'badge-mishwar' : 'badge-talab';
+        return `
+            <div class="order-card ${isHistory ? 'history' : ''}">
+                <div class="price-tag">${o.price || 0} ج</div>
+                <span class="badge ${badgeClass}">${o.serviceType}</span>
+                <span class="badge badge-area"><i class="fas fa-map-pin"></i> ${o.customerArea || 'منطقة عامة'}</span>
+                
+                <div class="info"><i class="fas fa-map-marker-alt"></i> <b>من:</b> ${o.from}</div>
+                <div class="info"><i class="fas fa-flag-checkered"></i> <b>إلى:</b> ${o.to || o.packageDescription}</div>
+                <div class="info"><i class="fas fa-phone-alt"></i> <b>العميل:</b> ${o.customerPhone}</div>
+                
+                <div style="display:flex; gap:10px; margin-top:15px;">
+                    <a href="tel:${o.customerPhone}" class="btn-call"><i class="fas fa-phone-alt"></i> اتصال</a>
+                    ${!isHistory ? `
+                        <button class="btn-accept" onclick="acceptOrder('${id}', ${o.price || 0})">قبول ✅</button>
+                    ` : (o.status === 'active' ? `
+                        <button class="btn-finish" onclick="completeOrder('${id}')">تم التوصيل ✅</button>
+                    ` : `<div style="flex:2; color:var(--s); font-weight:bold; text-align:center; padding:10px;">مكتمل ✅</div>`)}
+                </div>
+            </div>`;
+    }
+
+    function acceptOrder(id, price) {
+        // منع قبول أكثر من طلب
+        db.ref('orders').once('value').then(snap => {
+            let hasActive = false;
+            snap.forEach(child => {
+                if(child.val().driverPhone === currentDriver.phone && child.val().status === 'active') hasActive = true;
+            });
+
+            if(hasActive) {
+                alert("خلص المشوار اللي معاك الأول!");
+                return;
+            }
+
+            db.ref('orders/' + id).once('value').then(snap => {
+                if (snap.val().status !== 'waiting') {
+                    alert("الطلب ده طار خلاص!");
+                    return;
+                }
+
+                if(!confirm("متأكد هتاخد الطلب ده؟")) return;
+                
+                // تحديث الطلب ببيانات الكابتن ومنطقته
+                db.ref('orders/' + id).update({
+                    status: 'active',
+                    driverName: currentDriver.name,
+                    driverPhone: currentDriver.phone,
+                    driverArea: currentDriver.area // يرسل منطقته للوحة الإدارة
+                }).then(() => {
+                    const commission = price * 0.20;
+                    db.ref('drivers/' + currentDriver.phone + '/commissionBalance').transaction(c => (c || 0) + commission);
+                    alert("بالتوفيق يا بطل! الطلب في سجل رحلاتك.");
+                });
+            });
+        });
+    }
+
+    function completeOrder(id) {
+        if(confirm("تم التوصيل بنجاح؟")) {
+            db.ref('orders/' + id).update({ status: 'completed' });
+        }
+    }
+
+    function logout() {
+        if(confirm("تسجيل خروج؟")) {
+            localStorage.removeItem('activeDriver');
+            location.reload();
+        }
+    }
+</script>
+<script>// 1. طلب إذن الإشعارات من السائق
+if ("Notification" in window) {
+    Notification.requestPermission();
+}
+
+// 2. تعريف صوت التنبيه (تقدر تغير الرابط برابط صوت من عندك)
+const alertSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2513/2513-preview.mp3'); 
+
+// 3. مراقبة الطلبات الجديدة وتنبيه السائق
+db.ref('orders').on('child_added', (snap) => {
+    const order = snap.val();
+    
+    // نأكد إن الطلب لسه "في الانتظار" ومن نفس منطقة السائق
+    if (order.status === 'waiting' && order.customerArea === userArea) {
+        
+        // تشغيل صوت التنبيه
+        alertSound.play().catch(e => console.log("الصوت محتاج تفاعل أولاً"));
+
+        // إظهار إشعار في المتصفح (لو المتصفح مفتوح أو في الخلفية)
+        if (Notification.permission === "granted") {
+            new Notification("طلب مشوار جديد! 🛺", {
+                body: `من: ${order.from}\nرايح: ${order.to || 'طلب دليفري'}\nالسعر: ${order.price}ج`,
+                icon: 'https://cdn-icons-png.flaticon.com/512/717/717498.png'
+            });
+        }
+    }
+});
+</script>
+<script>self.addEventListener('push', function(event) {
+    const data = event.data.json();
+    const options = {
+        body: data.body,
+        icon: 'https://cdn-icons-png.flaticon.com/512/717/717498.png', // أيقونة تكتك
+        badge: 'https://cdn-icons-png.flaticon.com/512/717/717498.png',
+        vibrate: [200, 100, 200], // اهتزاز الموبايل
+        sound: 'default',
+        data: { url: data.url }
+    };
+
+    event.waitUntil(
+        self.registration.showNotification(data.title, options)
+    );
+});
+
+// فتح التطبيق عند الضغط على الإشعار
+self.addEventListener('notificationclick', function(event) {
+    event.notification.close();
+    event.waitUntil(
+        clients.openWindow(event.notification.data.url)
+    );
+});
+</script>
+</body>
+</html>
