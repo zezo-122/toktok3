@@ -1,0 +1,16 @@
+{
+  "name": "TokTok Driver App",
+  "short_name": "TokTok",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#5d3fd3",
+  "theme_color": "#5d3fd3",
+  "icons": [
+    {
+      "src": "https://image2url.com/r2/default/images/1774107604133-1b1cb683-0603-4376-9ea8-0512fca52ca3.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ],
+  "gcm_sender_id": "103953800507"
+}
